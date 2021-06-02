@@ -146,104 +146,105 @@ ui <- dashboardPage(skin= "purple",
                     p('GOH RAY FONG'),
                     p('NICHOLAS TAN YI DA')
                   ),
-                  # fluidRow(
-                  #   box(width=3,
-                  #       tags$h4("Logged in as:"),
-                  #       htmlOutput("loggedInAs"),
-                  #   ),
+                 
           
                   actionButton("login", "Login"),
                   tags$h4("Logged in as:"),
                   htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
-                ),
-      #           #Second tab content
-      #           tabItem(tabName = "onboarding",
-      #                   tags$div(
-      #                     tags$img(
-      #                       src='background.png',
-      #                       style="position: absolute;
-      #          top: -50%;
-      #          left: -50%;
-      #          width: 150%;
-      #          height: 150%;
-      #          display: flex;
-      #          z-order: 0;"
-      #                     ),
-      #                     tags$br(),
-      #                     tags$h1(
-      #                       'WELCOME!',
-      #                       style='color: #000000;
-      #            font-family: Times New Roman;
-      #            align: center;'
-      #                     ),
-      #                     
-      #                     
-      #                     # actionButton("login", "Login"),
-      #                     # tags$h4("Logged in as:"),
-      #                     # htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
-      #                   )
-      #                   ,
-      # 
-      #   #third tab content
-      #   tabItem(tabName = "market",
-      #           tags$div(
-      #             tags$img(
-      #               src='background.png',
-      #               style="position: absolute;
-      #    top: -50%;
-      #    left: -50%;
-      #    width: 150%;
-      #    height: 150%;
-      #    display: flex;
-      #    z-order: 0;"
-      #             ),
-      #             tags$br(),
-      #             tags$h1(
-      #               'WELCOME!',
-      #               style='color: #000000;
-      #      font-family: Times New Roman;
-      #      align: center;'
-      #             ),
-      #             
-      #             
-      #             # actionButton("login", "Login"),
-      #             # tags$h4("Logged in as:"),
-      #             # htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
-      #           )
-      #           ,
-      #   #fourth tab content
-      #   tabItem(tabName = "portfolio",
-      #           tags$div(
-      #             tags$img(
-      #               src='background.png',
-      #               style="position: absolute;
-      #            top: -50%;
-      #            left: -50%;
-      #            width: 150%;
-      #            height: 150%;
-      #            display: flex;
-      #            z-order: 0;"
-      #             ),
-      #             tags$br(),
-      #             tags$h1(
-      #               'WELCOME!',
-      #               style='color: #000000;
-      #              font-family: Times New Roman;
-      #              align: center;'
-      #             ),
-      #             
-      #             
-      #             # actionButton("login", "Login"),
-      #             # tags$h4("Logged in as:"),
-      #             # htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
-      #           )                
-      #         )
-      # )
+                )
+               
               
               
       )
       
-    ))))
+    )
+    ),
+    # #Second tab content
+    # tabItem(tabName = "onboarding",
+    #         tags$div(
+    #           tags$img(
+    #             src='background.png',
+    #             style="position: absolute;
+    #            top: -50%;
+    #            left: -50%;
+    #            width: 150%;
+    #            height: 150%;
+    #            display: flex;
+    #            z-order: 0;"
+    #           ),
+    #           tags$br(),
+    #           tags$h1(
+    #             'WELCOME!',
+    #             style='color: #000000;
+    #              font-family: Times New Roman;
+    #              align: center;'
+    #           ),
+              
+              
+              # actionButton("login", "Login"),
+              # tags$h4("Logged in as:"),
+              # htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
+            )
+            #,
+            
+            #   #third tab content
+            #   tabItem(tabName = "market",
+            #           tags$div(
+            #             tags$img(
+            #               src='background.png',
+            #               style="position: absolute;
+            #    top: -50%;
+            #    left: -50%;
+            #    width: 150%;
+            #    height: 150%;
+            #    display: flex;
+            #    z-order: 0;"
+            #             ),
+            #             tags$br(),
+            #             tags$h1(
+            #               'WELCOME!',
+            #               style='color: #000000;
+            #      font-family: Times New Roman;
+            #      align: center;'
+            #             ),
+            #             
+            #             
+            #             # actionButton("login", "Login"),
+            #             # tags$h4("Logged in as:"),
+            #             # htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
+            #           )
+            #           ,
+            #   #fourth tab content
+            #   tabItem(tabName = "portfolio",
+            #           tags$div(
+            #             tags$img(
+            #               src='background.png',
+            #               style="position: absolute;
+            #            top: -50%;
+            #            left: -50%;
+            #            width: 150%;
+            #            height: 150%;
+            #            display: flex;
+            #            z-order: 0;"
+            #             ),
+            #             tags$br(),
+            #             tags$h1(
+            #               'WELCOME!',
+            #               style='color: #000000;
+            #              font-family: Times New Roman;
+            #              align: center;'
+            #             ),
+            #             
+            #             
+            #             # actionButton("login", "Login"),
+            #             # tags$h4("Logged in as:"),
+            #             # htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
+            #           )                
+            #         )
+            # )
+    )
+  #)
+  #)
   
 
 ################SERVER####################

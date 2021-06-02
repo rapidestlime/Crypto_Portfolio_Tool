@@ -41,18 +41,22 @@ sqlQueryExecuteFromSqlitePath <- function(strPath,query){
 
 
 addclientInfo <- function(name){
-  conn <- dbConnect(RSQLite::SQLite(), strPath)
+  conn <- dbConnect(RSQLite::SQLite(), dbpath)
   querytemplate <- "INSERT INTO ClientInfo (ClientName,ClientOnboarding) VALUES (?id1,DATETIME('now','localtime'));"
   query<- sqlInterpolate(conn, querytemplate,id1=name)
   sqlQueryExecuteFromSqlitePath(dbpath,query)
 }
 
 addclientWallet <- function(name,wallet){
-  conn <- dbConnect(RSQLite::SQLite(), strPath)
+  conn <- dbConnect(RSQLite::SQLite(), dbpath)
   querytemplate <- "INSERT INTO ClientWallet (ClientName,ClientWallet) VALUES (?id1,?id2);"
   query<- sqlInterpolate(conn, querytemplate,id1=name,id2=wallet)
   sqlQueryExecuteFromSqlitePath(dbpath,query)
 }
 
+retrievenamelist <- function(){
+  querytemplate <- "SELECT ClientName FROM ClientInfo"
+  sqlQueryGetFromSqlitePath(dbpath,querytemplate)$ClientName
+}
 
-addclientInfo('Nicholas tan')
+#addclientInfo('Nicholas tan')

@@ -1,22 +1,21 @@
 source("usePackages.R")
-pkgnames <- c("tidyverse","shiny","DBI","jsonlite","shinydashboard","shinyWidgets","lubridate","hash")
+pkgnames <- c("tidyverse","shiny","DBI","jsonlite","shinydashboard","shinyWidgets","lubridate","hash","RSQLite")
 loadPkgs(pkgnames)
 
-
-
-
+source("Information.R")
+source("login.R")
 
 
 #######ui########
 ui <- dashboardPage(skin= "purple",
-  dashboardHeader(title = "INEVITABLE FUND TRACKING TOOL",
-                  titleWidth = 450
+  dashboardHeader(title = "LFG CAPTIAL TRACKING TOOL",
+                  titleWidth = 400
                   ),
   dashboardSidebar(
-    sidebarMenu(  
+    sidebarMenu(id = "sidebar",
       #https://fontawesome.com/icons?d=gallery
       menuItem("Welcome", tabName = "welcome", icon = icon("door-open")),
-      menuItem("Onboarding", tabName = "onboarding", icon = icon("portal-enter")),
+      menuItem("Onboarding", tabName = "onboarding", icon = icon("folder-open")),
       menuItem("Market Overview", tabName = "market", icon = icon("binoculars")),
       menuItem("Portfolio Overview", tabName = "portfolio", icon = icon("chart-pie"))
     )
@@ -25,27 +24,13 @@ ui <- dashboardPage(skin= "purple",
     tabItems(
       # First tab content
       tabItem(tabName = "welcome",
-              tags$div(
-                tags$img(
-                  src='background.png',
-                  style="position: absolute; 
-                         top: -50%; 
-                         left: -50%; 
-                         width: 150%; 
-                         height: 150%;
-                         display: flex;
-                         z-order: 0;"
-                ),
+              setBackgroundImage(src='background.png',TRUE),
                 tags$div(
-                  style="z-order:1;position:absolute;font-size: 150%",
+                  style="font-size: 150%;",
                   tags$img(
-                    src='logo.png',
-                    style= 
-                      'margin-left: auto;
-                     margin-right: auto;
-                     width: 50%; 
-                     height: 50%;
-                     align: center;'
+                    src='main logo.png',
+                    height=150,
+                    width=400
                   ),
                   tags$br(),
                   tags$h1(
@@ -54,7 +39,7 @@ ui <- dashboardPage(skin= "purple",
                            font-family: Times New Roman;
                            align: center;'
                   ),
-                  #tags$br(),
+                  tags$br(),
                   tags$h2(
                     'About Tool',
                     style='color: #000000;
@@ -80,17 +65,96 @@ ui <- dashboardPage(skin= "purple",
                   ),
                   actionButton("register", "Register"),
                   actionButton("login", "Login"),
-                  tags$h4("Logged in as:")
-                  #htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
-                )
+                  tags$h4("Logged in as:"),
+                  htmlOutput("loggedInAs", style="font-size:30;color:#D6AC18;font-family:Times New Roman;align:center;")
+                
               )
-      )
-              
-              
-      )
+      ),
       
-    )
-  )
+      tabItem(tabName="onboarding",
+              setBackgroundImage(src='background.png',TRUE),
+                fluidRow(
+                  column(6,
+                tags$div(
+                  style="font-size: 150%;",
+                  tags$img(
+                    src='addclientlogo.png',
+                    height=150,
+                    width=400
+                  ),
+                  tags$h2(
+                    'Client Name:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("name1",NULL),
+                  tags$h2(
+                    'Client Primary Wallet:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("primarywallet",NULL,width="170%"),
+                  tags$h2(
+                    'Client Secondary Wallet(if any):',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("secondarywallet",NULL,width="170%"),
+                  tags$h2(
+                    'File Input:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  fileInput("file1", NULL,
+                            accept = c(
+                              ".csv")),
+                  actionButton("save","SAVE"))),
+                  column(6,
+                  tags$img(
+                    src='updateclientlogo.png',
+                    height=150,
+                    width=400
+                  ),
+                  tags$h2(
+                    'Client Name:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  selectizeInput("name2",NULL,choices=retrievenamelist()),
+                  tags$h2(
+                    'Client Primary Wallet:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("primarywallet2",NULL,width="170%"),
+                  tags$h2(
+                    'Client Secondary Wallet:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("secondarywallet2",NULL,width="170%"),
+                  actionButton("update","UPDATE")
+                           )
+                          )
+              ),
+      tabItem(tabName="market",
+              setBackgroundImage(src='background.png',TRUE),
+              actionButton("hello","hello"))
+                     
+      
+             )    
+              
+             )
+      
+)
+  
 
 ################SERVER####################
 server <- function(input, output, session) {
@@ -98,6 +162,48 @@ server <- function(input, output, session) {
   vals <- reactiveValues(password = NULL,playerid=NULL,playername=NULL,question_store = c(1:10),wrong_qns=c(),score=0,grid=list(0,0,0,0,0,0,0,0,0),query=NULL)
   timer <- reactiveVal(35)
   active <- reactiveVal(FALSE)
+  
+  
+  
+  ##########LOGIN############
+  observeEvent(input$login, {
+    showModal(loginModal(failed=FALSE))
+  })
+  # Fire some code if the user clicks the loginok button
+  observeEvent(input$loginok, {
+    if (input$username=="dennis" && input$password=="lfg") {
+      
+      removeModal()
+      showModal(afterloginModal(failed=FALSE))
+    } else {
+      showModal(loginModal(failed = TRUE))
+    }
+  }) 
+  
+  # React to successful login
+  output$loggedInAs <- renderUI({
+    if (is.null(input$username))
+      "Not logged in yet."
+    else
+      input$username
+    
+  })
+  ##############################
+  
+  
+  #######TAB SWITCH AFTER LOGIN#######
+  observeEvent(input$onboardtab,{updateTabItems(session, "sidebar", "onboarding")
+    removeModal()})
+  observeEvent(input$markettab,{updateTabItems(session, "sidebar", "market")
+    removeModal()})
+  observeEvent(input$portfoliotab,{updateTabItems(session, "sidebar", "portfolio")
+    removeModal()})
+  
+  
+  
+  
+  
+  
   
 }
 

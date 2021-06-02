@@ -146,7 +146,10 @@ ui <- dashboardPage(skin= "purple",
               ),
       tabItem(tabName="market",
               setBackgroundImage(src='background.png',TRUE),
-              actionButton("hello","hello"))
+              actionButton("hello","hello"),
+              downloadButton("downloadData", label = "Download"))
+      
+      
                      
       
              )    
@@ -200,8 +203,16 @@ server <- function(input, output, session) {
     removeModal()})
   
   
-  
-  
+  ###########DB DATA DUMP: FOR BACKUP PURPOSES IN CASE APP REDEPLOY#############
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste("ClientData", "db", sep=".")
+    },
+    
+    content = function(file) {
+      file.copy(file.path(getwd(),'ClientData.db'), file)
+    },
+  )  
   
   
   

@@ -64,8 +64,8 @@ ui <- dashboardPage(skin= "purple",
       #https://fontawesome.com/icons?d=gallery
       menuItem("Welcome", tabName = "welcome", icon = icon("door-open")),
       menuItem("Onboarding", tabName = "onboarding", icon = icon("portal-enter")),
-      menuItem("Market Overview", tabName = "market", icon = icon("binoculars")),
-      menuItem("Portfolio Overview", tabName = "portfolio", icon = icon("chart-pie"))
+      #menuItem("Market Overview", tabName = "market", icon = icon("binoculars")),
+      menuItem("Portfolio", tabName = "portfolio", icon = icon("chart-pie"))
     )
   ),
   dashboardBody(
@@ -94,37 +94,42 @@ ui <- dashboardPage(skin= "purple",
                      height: 50%;
                      align: center;'
                   ),
-                  tags$br(),
-                  tags$h1(
-                    'WELCOME!',
-                    style='color: #000000;
-                           font-family: Times New Roman;
-                           align: center;'
-                  ),
-                  #tags$br(),
-                  tags$h2(
-                    'About Tool',
-                    style='color: #000000;
-                           font-family: Times New Roman;
-                           align: center;'
-                  ),
-                  tags$p(
-                    "This tool allows one to keep track of the current crypto market as well as managing portfolio",
-                    style='color:#000000;
-                           font-family:Times New Roman;
-                           align:center;'
-                  ),
-
-                  tags$h2(
-                    "Creators:",
-                    style='color:#000000;
-                           font-family:Times New Roman;
-                           align:center;'
-                  ),
-                  tags$ul(
-                    p('GOH RAY FONG'),
-                    p('NICHOLAS TAN YI DA')
-                  ),
+                  # tags$br(),
+                  # tags$h1(
+                  #   'WELCOME!',
+                  #   style='color: #000000;
+                  #          font-family: Times New Roman;
+                  #          align: center;'
+                  # ),
+                  # #tags$br(),
+                  # tags$h2(
+                  #   'About Tool',
+                  #   style='color: #000000;
+                  #          font-family: Times New Roman;
+                  #          align: center;'
+                  # ),
+                  # tags$p(
+                  #   "This tool allows one to keep track of the current crypto market as well as managing portfolio",
+                  #   style='color:#000000;
+                  #          font-family:Times New Roman;
+                  #          align:center;'
+                  # ),
+                  # 
+                  # tags$h2(
+                  #   "Creators:",
+                  #   style='color:#000000;
+                  #          font-family:Times New Roman;
+                  #          align:center;'
+                  # ),
+                  # tags$ul(
+                  #   p('GOH RAY FONG'),
+                  #   p('NICHOLAS TAN YI DA')
+                  # ),
+                  fluidRow(
+                    box(width=3,
+                        tags$h4("Logged in as:"),
+                        htmlOutput("loggedInAs"),
+                    ),
           
                   actionButton("login", "Login"),
                   tags$h4("Logged in as:")
@@ -136,8 +141,8 @@ ui <- dashboardPage(skin= "purple",
               
       )
       
-    )
-  )
+    )))
+  
 
 ################SERVER####################
 server <- function(input, output, session) {
@@ -176,11 +181,22 @@ server <- function(input, output, session) {
   # Fire some code if the user clicks the loginok button
   observeEvent(input$loginok, {
     if (input$username=="dennis" && input$password=="abc") {
+      
       removeModal()
     } else {
       showModal(loginModal(failed = TRUE))
     }
   }) 
+  
+  # React to successful login
+  output$loggedInAs <- renderUI({
+    if (is.null(input$username))
+      "Not logged in yet."
+    else
+      input$username
+  })
+  
+  
 }
 
 

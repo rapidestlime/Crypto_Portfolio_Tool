@@ -47,10 +47,10 @@ addclientInfo <- function(name){
   sqlQueryExecuteFromSqlitePath(dbpath,query)
 }
 
-addclientWallet <- function(name,wallet){
+addclientWallet <- function(name,priwallet,secwallet){
   conn <- dbConnect(RSQLite::SQLite(), dbpath)
-  querytemplate <- "INSERT INTO ClientWallet (ClientName,ClientWallet) VALUES (?id1,?id2);"
-  query<- sqlInterpolate(conn, querytemplate,id1=name,id2=wallet)
+  querytemplate <- "INSERT INTO ClientWallet (ClientName,PriWallet,SecWallet) VALUES (?id1,?id2,?id3);"
+  query<- sqlInterpolate(conn, querytemplate,id1=name,id2=priwallet,id3=secwallet)
   sqlQueryExecuteFromSqlitePath(dbpath,query)
 }
 
@@ -59,4 +59,24 @@ retrievenamelist <- function(){
   sqlQueryGetFromSqlitePath(dbpath,querytemplate)$ClientName
 }
 
-#addclientInfo('Nicholas tan')
+updateclientwallet <- function(name,priwallet,secwallet) {
+  conn <- dbConnect(RSQLite::SQLite(), dbpath)
+  if (priwallet != '' && secwallet == ''){
+    querytemplate <- "UPDATE ClientWallet SET PriWallet = ?id1 WHERE ClientName = ?id2"
+    query <- sqlInterpolate(conn, querytemplate,id1=priwallet,id2=name)
+    sqlQueryExecuteFromSqlitePath(dbpath,query)
+  }
+  if (priwallet == '' && secwallet != ''){
+    querytemplate <- "UPDATE ClientWallet SET SecWallet = ?id1 WHERE ClientName = ?id2"
+    query <- sqlInterpolate(conn, querytemplate,id1=secwallet,id2=name)
+    sqlQueryExecuteFromSqlitePath(dbpath,query)
+  }
+  if (priwallet != '' && secwallet != ''){
+    querytemplate <- "UPDATE ClientWallet SET PriWallet = ?id1,SecWallet ?id2 WHERE ClientName = ?id3"
+    query <- sqlInterpolate(conn, querytemplate,id1=priwallet,id2=secwallet,id3=name)
+    sqlQueryExecuteFromSqlitePath(dbpath,query)
+  }
+  if (priwallet == '' && secwallet == ''){
+  }
+}
+

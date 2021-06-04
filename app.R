@@ -103,14 +103,14 @@ ui <- dashboardPage(skin= "purple",
                            font-family: Times New Roman;
                            align: center;'
                   ),
-                  textInput("primarywallet",NULL,width="170%"),
+                  textInput("primarywallet1",NULL,width="170%"),
                   tags$h2(
                     'Client Secondary Wallet(if any):',
                     style='color: #000000;
                            font-family: Times New Roman;
                            align: center;'
                   ),
-                  textInput("secondarywallet",NULL,width="170%"),
+                  textInput("secondarywallet1",NULL,width="170%"),
                   tags$h2(
                     'File Input:',
                     style='color: #000000;
@@ -219,7 +219,7 @@ server <- function(input, output, session) {
   #accessing table
   output$mytable= DT::renderDataTable({mtcars})
   
-  ###########DB DATA DUMP: FOR BACKUP PURPOSES IN CASE APP REDEPLOY#############
+  ###########DB DATA DUMP: FOR BACKUP PURPOSES IN CASE APP REDEPLOYMENT!#############
   output$downloadData <- downloadHandler(
     filename = function() {
       paste("ClientData", "db", sep=".")
@@ -229,9 +229,47 @@ server <- function(input, output, session) {
       file.copy(file.path(getwd(),'ClientData.db'), file)
     },
   )  
+  ###############################################################################
   
   
+  ###########save client info################
+  observeEvent(input$save,{
+    addclientInfo(input$name1)
+    if (input$primarywallet1 != '' && input$name1 != ''){ #name and priwallet cannot empty
+       addclientWallet(input$name1,input$primarywallet1, input$secondarywallet1)
+       updateTextInput(session,"name1", value="")
+       updateTextInput(session,"primarywallet1", value="")
+       updateTextInput(session,"secondarywallet1", value="")
+       showModal(modalDialog(
+         title = "Alert",
+         "Information saved!",
+         easyClose = TRUE,
+         footer = NULL
+       )) }
+    else {showModal(modalDialog(
+      title = "Alert",
+      "Error saving details. Check field inputs!",
+      easyClose = TRUE,
+      footer = NULL
+    ))}
+  })
+  ##############################################
   
+  
+  ############update client info################
+  observeEvent(input$update,{
+    updateclientwallet(input$name2,input$primarywallet2,input$secondarywallet2)
+    if (input$primarywallet2 != '' || input$secondarywallet2 != ''){
+      updateTextInput(session,"name2", value="")
+      updateTextInput(session,"primarywallet2", value="")
+      updateTextInput(session,"secondarywallet2", value="")
+      showModal(modalDialog(
+        title = "Alert",
+        "Information updated!",
+        easyClose = TRUE,
+        footer = NULL
+      ))
+    }})
 }
 
 

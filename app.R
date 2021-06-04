@@ -1,11 +1,19 @@
 source("usePackages.R")
-pkgnames <- c("tidyverse","shiny","DBI","jsonlite","shinydashboard","shinyWidgets","lubridate","hash","RSQLite")
+pkgnames <- c("tidyverse","shiny","DBI","jsonlite","shinydashboard","shinyWidgets","lubridate","hash","RSQLite","DT")
 loadPkgs(pkgnames)
 
 source("Information.R")
 source("login.R")
 
-
+onboardSuccessModal<- function(failed= FALSE){
+  modalDialog(
+    "Client successfully onboarded.",
+    if (failed)
+      div(tags$b("Remember to input both client name and client wallet addresses. Try again.", style = "color: red;")),
+    
+    footer= taglist(modalButton("OK"))
+  )
+}
 #######ui########
 ui <- dashboardPage(skin= "purple",
   dashboardHeader(title = "LFG CAPTIAL TRACKING TOOL",
@@ -147,7 +155,13 @@ ui <- dashboardPage(skin= "purple",
       tabItem(tabName="market",
               setBackgroundImage(src='background.png',TRUE),
               actionButton("hello","hello"),
-              downloadButton("downloadData", label = "Download"))
+              downloadButton("downloadData", label = "Download")),
+      tabItem(tabName="portfolio",
+              setBackgroundImage(src='background.png',TRUE),
+              DT::dataTableOutput("mytable"),
+              actionButton("hello","hello"),
+              downloadButton("generateData", label = "Generate PDF")
+              )
       
       
                      
@@ -202,6 +216,8 @@ server <- function(input, output, session) {
   observeEvent(input$portfoliotab,{updateTabItems(session, "sidebar", "portfolio")
     removeModal()})
   
+  #accessing table
+  output$mytable= DT::renderDataTable({mtcars})
   
   ###########DB DATA DUMP: FOR BACKUP PURPOSES IN CASE APP REDEPLOY#############
   output$downloadData <- downloadHandler(

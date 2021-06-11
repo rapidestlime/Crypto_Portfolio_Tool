@@ -1,7 +1,11 @@
 source("usePackages.R")
 pkgnames <- c("tidyverse","shiny","DBI","jsonlite","shinydashboard","shinyWidgets","lubridate","hash","RSQLite")
 loadPkgs(pkgnames)
-
+library(httr)
+library(jsonlite)
+library(plyr)
+library(data.table)
+library(rlist)
 source("Information.R")
 source("login.R")
 
@@ -147,7 +151,13 @@ ui <- dashboardPage(skin= "purple",
       tabItem(tabName="market",
               setBackgroundImage(src='background.png',TRUE),
               actionButton("hello","hello"),
-              downloadButton("downloadData", label = "Download"))
+              downloadButton("downloadData", label = "Download")),
+      tabItem(tabName="portfolio",
+              setBackgroundImage(src='background.png',TRUE),
+              uiOutput('datatables'),
+              actionButton("hello","hello"),
+              downloadButton("generateData", label = "Generate PDF")
+      )
       
       
                      
@@ -162,7 +172,7 @@ ui <- dashboardPage(skin= "purple",
 ################SERVER####################
 server <- function(input, output, session) {
   #reactiveValues objects for storing items like the user password
-  vals <- reactiveValues(password = NULL,playerid=NULL,playername=NULL,question_store = c(1:10),wrong_qns=c(),score=0,grid=list(0,0,0,0,0,0,0,0,0),query=NULL)
+  vals <- reactiveValues(datatags=list(),tables=list(),query=NULL)
   timer <- reactiveVal(35)
   active <- reactiveVal(FALSE)
   
@@ -254,7 +264,53 @@ server <- function(input, output, session) {
         footer = NULL
       ))
     }})
-}
+  ################################################
+  
+  
+  
+  
+  
+  
+  #helpful links for generating multiple tables in one go (dont delete!)
+  #https://stackoverflow.com/questions/41201192/r-shiny-display-multiple-plots-selected-with-checkboxgroupinput
+  #https://community.rstudio.com/t/shiny-app-with-dynamic-number-of-datatables/2405/2
+  #https://stackoverflow.com/questions/22842354/outputing-n-tables-in-shiny-where-n-depends-on-the-data
+  #https://stackoverflow.com/questions/2436688/append-an-object-to-a-list-in-r-in-amortized-constant-time-o1
+  #https://community.rstudio.com/t/shiny-app-with-dynamic-number-of-datatables/2405/8  <---important for understanding dynamic table generation!
+  
+  
+  
+  
+  
+  
+  
+  ###############data tables####################
+  output$datatables <- renderUI({isolate({
+    link <- 'https://api.zapper.fi/v1/protocols/balances/supported?addresses%5B%5D=0x58bbae0159117a75225e72d941dbe35ffd99f894&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241'
+    test <- GET(link)
+    test <- fromJSON(rawToChar(test$content))
+    for (i in seq(from = 1, to = length(test$network))){
+      network <- test$network[i]
+      vals$datatags <- list(vals$datatags, h2(paste0(str_to_title(network),' Network')))
+      for (e in ldply(test$protocols[i], data.frame)$protocol){
+        link1 <- paste0(paste0('https://api.zapper.fi/v1/protocols/',e),paste0(paste0('/balances?addresses%5B%5D=0x58bbae0159117a75225e72d941dbe35ffd99f894&network=',network),'&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241'))
+        data <- fromJSON(rawToChar(GET(link1)$content))
+        wallet <- '0x58bbae0159117a75225e72d941dbe35ffd99f894'
+        vals$datatags <- list(vals$datatags, h3(paste0(str_to_title(e),' Protocol')))
+        vals$tables[[paste0(e,network)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame)
+        vals$datatags <- list(vals$datatags,DT::dataTableOutput(paste0(e,network)))
+      }}
+    
+    
+    for (i in names(vals$tables)){local({
+      i<-i
+      print(vals$tables[[i]])
+      output[[i]] <- DT::renderDataTable({vals$tables[[i]]},options = list(pageLength = 10, width="100%", scrollX = TRUE))
+    })}
+   return(vals$datatags) 
+  }) })
+    
+    }
 
 
 

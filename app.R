@@ -6,6 +6,7 @@ library(jsonlite)
 library(plyr)
 library(data.table)
 library(rlist)
+library(shinycssloaders)
 source("Information.R")
 source("login.R")
 
@@ -154,7 +155,27 @@ ui <- dashboardPage(skin= "purple",
               downloadButton("downloadData", label = "Download")),
       tabItem(tabName="portfolio",
               setBackgroundImage(src='background.png',TRUE),
-              uiOutput('datatables'),
+              tags$img(
+                src='viewportfolio.png',
+                height=150,
+                width=400
+              ),
+              tags$h2(
+                'Search Clients:',
+                style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+              ),
+              selectizeInput("name3",NULL,choices=retrievenamelist()),
+              actionButton("retrieve","RETRIEVE"),
+              tags$h2(
+                'Portfolio Statistics:',
+                style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+              ),
+              uiOutput('statistics'),
+              shinycssloaders::withSpinner(uiOutput('datatables'), type = 6, color = "#EB21E1", size = 3),
               actionButton("hello","hello"),
               downloadButton("generateData", label = "Generate PDF")
       )
@@ -285,33 +306,40 @@ server <- function(input, output, session) {
   
   
   ###############data tables####################
-  output$datatables <- renderUI({isolate({
-    link <- 'https://api.zapper.fi/v1/protocols/balances/supported?addresses%5B%5D=0x58bbae0159117a75225e72d941dbe35ffd99f894&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241'
-    test <- GET(link)
-    test <- fromJSON(rawToChar(test$content))
-    for (i in seq(from = 1, to = length(test$network))){
-      network <- test$network[i]
-      vals$datatags <- list(vals$datatags, h2(paste0(str_to_title(network),' Network')))
-      for (e in ldply(test$protocols[i], data.frame)$protocol){
-        link1 <- paste0(paste0('https://api.zapper.fi/v1/protocols/',e),paste0(paste0('/balances?addresses%5B%5D=0x58bbae0159117a75225e72d941dbe35ffd99f894&network=',network),'&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241'))
-        data <- fromJSON(rawToChar(GET(link1)$content))
-        wallet <- '0x58bbae0159117a75225e72d941dbe35ffd99f894'
-        vals$datatags <- list(vals$datatags, h3(paste0(str_to_title(e),' Protocol')))
-        vals$tables[[paste0(e,network)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame)
-        vals$datatags <- list(vals$datatags,DT::dataTableOutput(paste0(e,network)))
-      }}
+  observeEvent(input$retrieve,{
+    priwallet <- retrievewalletlist(input$name3)
+    vals$datatags <- list()
+    vals$tables <- list()
+    output$datatables <- renderUI({isolate({
+      supportedlink <- paste0(paste0('https://api.zapper.fi/v1/protocols/balances/supported?addresses%5B%5D=',priwallet),'&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241')
+      supported <- GET(supportedlink)
+      supported <- fromJSON(rawToChar(supported$content))
+      for (i in seq(from = 1, to = length(supported$network))){
+        network <- supported$network[i]
+        vals$datatags <- list(vals$datatags, h2(paste0(str_to_title(network),' Network')))
+        for (e in ldply(supported$protocols[i], data.frame)$protocol){
+          datalink <- sprintf('https://api.zapper.fi/v1/protocols/%s/balances?addresses%s%s&network=%s&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241',e,'%5B%5D=',priwallet,network)
+          data <- fromJSON(rawToChar(GET(datalink)$content))
+          wallet <- '0x58bbae0159117a75225e72d941dbe35ffd99f894'
+          vals$datatags <- list(vals$datatags, h3(paste0(str_to_title(e),' Protocol')))
+          vals$tables[[paste0(e,network)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",priwallet))),data.frame)
+          vals$datatags <- list(vals$datatags,DT::dataTableOutput(paste0(e,network)))
+        }}
+      
+      
+      for (i in names(vals$tables)){local({
+        i<-i
+        print(vals$tables[[i]])
+        output[[i]] <- DT::renderDataTable({vals$tables[[i]]},options = list(pageLength = 10, width="100%", scrollX = TRUE))
+      })}
+      return(vals$datatags) 
+    }) })
     
-    
-    for (i in names(vals$tables)){local({
-      i<-i
-      print(vals$tables[[i]])
-      output[[i]] <- DT::renderDataTable({vals$tables[[i]]},options = list(pageLength = 10, width="100%", scrollX = TRUE))
-    })}
-   return(vals$datatags) 
-  }) })
-    
-    }
+  })
+  
+  
 
+}
 
 
 

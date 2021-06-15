@@ -59,6 +59,13 @@ retrievenamelist <- function(){
   sqlQueryGetFromSqlitePath(dbpath,querytemplate)$ClientName
 }
 
+retrievewalletlist <- function(name){
+  conn <- dbConnect(RSQLite::SQLite(), dbpath)
+  querytemplate <- "SELECT * FROM ClientWallet WHERE ClientName = ?id1"
+  query<- sqlInterpolate(conn, querytemplate,id1=name)
+  sqlQueryGetFromSqlitePath(dbpath,query)$PriWallet
+}
+
 updateclientwallet <- function(name,priwallet,secwallet) {
   conn <- dbConnect(RSQLite::SQLite(), dbpath)
   if (priwallet != '' && secwallet == ''){

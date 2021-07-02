@@ -342,11 +342,11 @@ server <- function(input, output, session) {
   observeEvent(input$retrieve,{
     walletlist <- retrievewalletlist(input$name3)
     
-    eth_based <- retrieveportfolio1(walletlist$PriWallet)
+    eth_based <- getportfolio1(walletlist$PriWallet)
     vals$datatags <- list(vals$datatags,eth_based$tags)
     vals$tables <- list(vals$tables,eth_based$tables)
     if (!is.na(walletlist$TerraWallet) || !is.na(walletlist$SolanaWallet)){
-    terra_sol <- retrieveportfolio1(walletlist$TerraWallet,walletlist$SolanaWallet)
+    terra_sol <- getportfolio2(walletlist$TerraWallet,walletlist$SolanaWallet)
     vals$datatags <- list(vals$datatags,terra_sol$tags)
     vals$tables <- list(vals$tables,terra_sol$tables)
     }

@@ -9,6 +9,8 @@ library(rlist)
 library(shinycssloaders)
 source("Information.R")
 source("login.R")
+source("retrieveportfolio1.R")
+source("retrieveportfolio2.R")
 
 
 #######ui########
@@ -109,6 +111,20 @@ ui <- dashboardPage(skin= "purple",
                   ),
                   textInput("secondarywallet1",NULL,width="170%"),
                   tags$h2(
+                    'Client Terra Wallet:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("terrawallet1",NULL,width="170%"),
+                  tags$h2(
+                    'Client Solana Wallet:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("solanawallet1",NULL,width="170%"),
+                  tags$h2(
                     'File Input:',
                     style='color: #000000;
                            font-family: Times New Roman;
@@ -145,6 +161,20 @@ ui <- dashboardPage(skin= "purple",
                            align: center;'
                   ),
                   textInput("secondarywallet2",NULL,width="170%"),
+                  tags$h2(
+                    'Client Terra Wallet:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("terrawallet2",NULL,width="170%"),
+                  tags$h2(
+                    'Client Solana Wallet:',
+                    style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                  ),
+                  textInput("solanawallet2",NULL,width="170%"),
                   actionButton("update","UPDATE")
                            )
                           )
@@ -194,7 +224,6 @@ ui <- dashboardPage(skin= "purple",
 server <- function(input, output, session) {
   #reactiveValues objects for storing items like the user password
   vals <- reactiveValues(datatags=list(),tables=list(),query=NULL)
-  timer <- reactiveVal(35)
   active <- reactiveVal(FALSE)
   
   
@@ -208,7 +237,7 @@ server <- function(input, output, session) {
     if (input$username=="dennis" && input$password=="lfg") {
       
       removeModal()
-      showModal(afterloginModal(failed=FALSE))
+      showModal(afterloginModal(failed=FALSE)) 
     } else {
       showModal(loginModal(failed = TRUE))
     }
@@ -251,10 +280,12 @@ server <- function(input, output, session) {
   observeEvent(input$save,{
     addclientInfo(input$name1)
     if (input$primarywallet1 != '' && input$name1 != ''){ #name and priwallet cannot empty
-       addclientWallet(input$name1,input$primarywallet1, input$secondarywallet1)
+       addclientWallet(input$name1,input$primarywallet1,input$secondarywallet1,input$terrawallet1,input$solanawallet1)
        updateTextInput(session,"name1", value="")
        updateTextInput(session,"primarywallet1", value="")
        updateTextInput(session,"secondarywallet1", value="")
+       updateTextInput(session,"terrawallet1", value="")
+       updateTextInput(session,"solanawallet1", value="")
        showModal(modalDialog(
          title = "Alert",
          "Information saved!",
@@ -273,11 +304,13 @@ server <- function(input, output, session) {
   
   ############update client info################
   observeEvent(input$update,{
-    updateclientwallet(input$name2,input$primarywallet2,input$secondarywallet2)
+    updateclientwallet(input$name2,input$primarywallet2,input$secondarywallet2,input$terrawallet2,input$solanawallet2)
     if (input$primarywallet2 != '' || input$secondarywallet2 != ''){
       updateTextInput(session,"name2", value="")
       updateTextInput(session,"primarywallet2", value="")
       updateTextInput(session,"secondarywallet2", value="")
+      updateTextInput(session,"terrawallet2", value="")
+      updateTextInput(session,"solanawallet2", value="")
       showModal(modalDialog(
         title = "Alert",
         "Information updated!",
@@ -307,35 +340,39 @@ server <- function(input, output, session) {
   
   ###############data tables####################
   observeEvent(input$retrieve,{
-    priwallet <- retrievewalletlist(input$name3)
-    vals$datatags <- list()
-    vals$tables <- list()
-    output$datatables <- renderUI({isolate({
-      supportedlink <- paste0(paste0('https://api.zapper.fi/v1/protocols/balances/supported?addresses%5B%5D=',priwallet),'&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241')
-      supported <- GET(supportedlink)
-      supported <- fromJSON(rawToChar(supported$content))
-      for (i in seq(from = 1, to = length(supported$network))){
-        network <- supported$network[i]
-        vals$datatags <- list(vals$datatags, h2(paste0(str_to_title(network),' Network')))
-        for (e in ldply(supported$protocols[i], data.frame)$protocol){
-          datalink <- sprintf('https://api.zapper.fi/v1/protocols/%s/balances?addresses%s%s&network=%s&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241',e,'%5B%5D=',priwallet,network)
-          data <- fromJSON(rawToChar(GET(datalink)$content))
-          wallet <- '0x58bbae0159117a75225e72d941dbe35ffd99f894'
-          vals$datatags <- list(vals$datatags, h3(paste0(str_to_title(e),' Protocol')))
-          vals$tables[[paste0(e,network)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",priwallet))),data.frame)
-          vals$datatags <- list(vals$datatags,DT::dataTableOutput(paste0(e,network)))
-        }}
-      
-      
-      for (i in names(vals$tables)){local({
-        i<-i
-        print(vals$tables[[i]])
-        output[[i]] <- DT::renderDataTable({vals$tables[[i]]},options = list(pageLength = 10, width="100%", scrollX = TRUE))
-      })}
-      return(vals$datatags) 
-    }) })
+    walletlist <- retrievewalletlist(input$name3)
     
+    eth_based <- retrieveportfolio1(walletlist$PriWallet)
+    vals$datatags <- list(vals$datatags,eth_based$tags)
+    vals$tables <- list(vals$tables,eth_based$tables)
+    if (!is.na(walletlist$TerraWallet) || !is.na(walletlist$SolanaWallet)){
+    terra_sol <- retrieveportfolio1(walletlist$TerraWallet,walletlist$SolanaWallet)
+    vals$datatags <- list(vals$datatags,terra_sol$tags)
+    vals$tables <- list(vals$tables,terra_sol$tables)
+    }
+    for (i in names(vals$tables)){local({
+      i<-i
+      print(vals$tables[[i]])
+      output[[i]] <- DT::renderDataTable({vals$tables[[i]]},options = list(pageLength = 10, width="100%", scrollX = TRUE))
+    })}
+    return(vals$datatags)
+      
   })
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+      
+    
+    
+
   
   
 

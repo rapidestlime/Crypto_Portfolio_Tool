@@ -47,10 +47,10 @@ addclientInfo <- function(name){
   sqlQueryExecuteFromSqlitePath(dbpath,query)
 }
 
-addclientWallet <- function(name,priwallet,secwallet){
+addclientWallet <- function(name,priwallet,secwallet,terrawallet,solanawallet){
   conn <- dbConnect(RSQLite::SQLite(), dbpath)
-  querytemplate <- "INSERT INTO ClientWallet (ClientName,PriWallet,SecWallet) VALUES (?id1,?id2,?id3);"
-  query<- sqlInterpolate(conn, querytemplate,id1=name,id2=priwallet,id3=secwallet)
+  querytemplate <- "INSERT INTO ClientWallet (ClientName,PriWallet,SecWallet,TerraWallet,SolanaWallet) VALUES (?id1,?id2,?id3,?id4,?id5);"
+  query<- sqlInterpolate(conn, querytemplate,id1=name,id2=priwallet,id3=secwallet,id4=terrawallet,id5=solanawallet)
   sqlQueryExecuteFromSqlitePath(dbpath,query)
 }
 
@@ -63,11 +63,12 @@ retrievewalletlist <- function(name){
   conn <- dbConnect(RSQLite::SQLite(), dbpath)
   querytemplate <- "SELECT * FROM ClientWallet WHERE ClientName = ?id1"
   query<- sqlInterpolate(conn, querytemplate,id1=name)
-  sqlQueryGetFromSqlitePath(dbpath,query)$PriWallet
+  sqlQueryGetFromSqlitePath(dbpath,query)
 }
 
-updateclientwallet <- function(name,priwallet,secwallet) {
+updateclientwallet <- function(name,priwallet,secwallet,terrawallet,solanawallet) {
   conn <- dbConnect(RSQLite::SQLite(), dbpath)
+  
   if (priwallet != '' && secwallet == ''){
     querytemplate <- "UPDATE ClientWallet SET PriWallet = ?id1 WHERE ClientName = ?id2"
     query <- sqlInterpolate(conn, querytemplate,id1=priwallet,id2=name)
@@ -84,6 +85,24 @@ updateclientwallet <- function(name,priwallet,secwallet) {
     sqlQueryExecuteFromSqlitePath(dbpath,query)
   }
   if (priwallet == '' && secwallet == ''){
+  } 
+  
+  if (terrawallet != '' && solanawallet == ''){
+    querytemplate <- "UPDATE ClientWallet SET TerraWallet = ?id1 WHERE ClientName = ?id2"
+    query <- sqlInterpolate(conn, querytemplate,id1=terrawallet,id2=name)
+    sqlQueryExecuteFromSqlitePath(dbpath,query)
+  }
+  if (terrawallet == '' && solanawallet != ''){
+    querytemplate <- "UPDATE ClientWallet SET SolanaWallet = ?id1 WHERE ClientName = ?id2"
+    query <- sqlInterpolate(conn, querytemplate,id1=solanawallet,id2=name)
+    sqlQueryExecuteFromSqlitePath(dbpath,query)
+  }
+  if (terrawallet != '' && solanawallet != ''){
+    querytemplate <- "UPDATE ClientWallet SET TerraWallet = ?id1,SolanaWallet = ?id2 WHERE ClientName = ?id3"
+    query <- sqlInterpolate(conn, querytemplate,id1=terrawallet,id2=solanawallet,id3=name)
+    sqlQueryExecuteFromSqlitePath(dbpath,query)
+  }
+  if (terrawallet == '' && solanawallet == ''){
   }
 }
 

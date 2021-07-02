@@ -355,7 +355,7 @@ server <- function(input, output, session) {
       print(vals$tables[[i]])
       output[[i]] <- DT::renderDataTable({vals$tables[[i]]},options = list(pageLength = 10, width="100%", scrollX = TRUE))
     })}
-    return(vals$datatags)
+    output$datatables <- renderUI({isolate{vals$datatags}})
       
   })
       

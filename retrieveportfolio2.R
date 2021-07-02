@@ -187,7 +187,7 @@ getportfolio2 <- function(terra,solana){
   
   
   for (link in apirepo$solana){
-    data <- GET(paste0(link,wallet))
+    data <- GET(paste0(link,solana))
     data <- fromJSON(rawToChar(data$content))
     occupied <- jsonchecker(data)
     if (occupied != c()){

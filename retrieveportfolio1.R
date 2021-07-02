@@ -37,7 +37,7 @@ getportfolio1 <- function(wallet){
       data <- fromJSON(rawToChar(GET(datalink)$content))
       if (eval(parse(text=sprintf("data$'%s'$products"))) != list()) {
       outputtags <- list(outputtags, h3(paste0(str_to_title(e),' Protocol')))
-      outputtables[[paste0(e,nw)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame)
+      outputtables[[paste0(e,nw)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame) %>% select(type,category,symbol,label,protocol,price,balance,balanceUSD)
       outputtags <- list(outputtags,DT::dataTableOutput(paste0(e,nw)))
       }
     }}} 

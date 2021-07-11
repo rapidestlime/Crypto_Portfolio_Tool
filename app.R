@@ -185,28 +185,47 @@ ui <- dashboardPage(skin= "purple",
               downloadButton("downloadData", label = "Download")),
       tabItem(tabName="portfolio",
               setBackgroundImage(src='background.png',TRUE),
-              tags$img(
-                src='viewportfolio.png',
-                height=150,
-                width=400
-              ),
-              tags$h2(
-                'Search Clients:',
-                style='color: #000000;
+              fluidRow(
+                column(6,
+                       tags$div(
+                         tags$img(
+                           src='viewportfolio.png',
+                           height=150,
+                           width=400
+                         ),
+                         tags$h2(
+                           'Search Clients:',
+                           style='color: #000000;
                            font-family: Times New Roman;
                            align: center;'
-              ),
-              selectizeInput("name3",NULL,choices=retrievenamelist()),
-              actionButton("retrieve","RETRIEVE"),
+                         ),
+                         selectizeInput("name3",NULL,choices=retrievenamelist()),
+                         actionButton("retrieve","RETRIEVE"))),
+                column(6,
+                       tags$div(
+                         tags$img(
+                           src='editaum.png',
+                           height=150,
+                           width=400
+                         ),
+                         tags$h2(
+                           'Modify AUM:',
+                           style='color: #000000;
+                           font-family: Times New Roman;
+                           align: center;'
+                         ),
+                         textInput("modifyaum",NULL,width="50%"),
+                         actionButton("updateaum","UPDATE"),
+                         actionButton("initialiseaum","INITIALISE")
+                       ))),
               tags$h2(
                 'Portfolio Statistics:',
                 style='color: #000000;
-                           font-family: Times New Roman;
-                           align: center;'
+                font-family: Times New Roman;
+                align: center;'
               ),
               uiOutput('statistics'),
-              shinycssloaders::withSpinner(uiOutput('datatables'), type = 6, color = "#EB21E1", size = 3),
-              actionButton("hello","hello"),
+              shinycssloaders::withSpinner(uiOutput('datatables'), type = 6, color = "#EB21E1", size = 2.5),
               downloadButton("generateData", label = "Generate PDF")
       )
       
@@ -223,7 +242,7 @@ ui <- dashboardPage(skin= "purple",
 ################SERVER####################
 server <- function(input, output, session) {
   #reactiveValues objects for storing items like the user password
-  vals <- reactiveValues(datatags=list(),tables=list(),query=NULL)
+  vals <- reactiveValues(datatags=list(),tables=list(),queriedName=NULL,queriedAUM=NULL)
   active <- reactiveVal(FALSE)
   
   
@@ -341,26 +360,77 @@ server <- function(input, output, session) {
   ###############data tables####################
   observeEvent(input$retrieve,{
     walletlist <- retrievewalletlist(input$name3)
+    vals$datatags <- NULL
+    vals$tables <- NULL
+    vals$queriedAUM <- is.numeric(0)
+    vals$queriedName <- input$name3
     
-    eth_based <- getportfolio1(walletlist$PriWallet)
-    vals$datatags <- list(vals$datatags,eth_based$tags)
-    vals$tables <- list(vals$tables,eth_based$tables)
-    if (!is.na(walletlist$TerraWallet) || !is.na(walletlist$SolanaWallet)){
-    terra_sol <- getportfolio2(walletlist$TerraWallet,walletlist$SolanaWallet)
-    vals$datatags <- list(vals$datatags,terra_sol$tags)
-    vals$tables <- list(vals$tables,terra_sol$tables)
+    output$datatables <- renderUI({isolate({
+      eth_based <- getportfolio1(walletlist$PriWallet)
+      if (!is.na(walletlist$TerraWallet) || !is.na(walletlist$SolanaWallet)){
+        terra_sol <- getportfolio2(walletlist$TerraWallet,walletlist$SolanaWallet)
+        vals$datatags <- c(eth_based$tags,terra_sol$tags)
+        vals$tables <- c(eth_based$tables,terra_sol$tables)
+        vals$queriedAUM <- round(eth_based$net + terra_sol$net,2)
+      }
+      else{
+        vals$datatags <- eth_based$tags
+        vals$tables <- eth_based$tables
+        vals$queriedAUM <- round(eth_based$net,2)
+      }
+
+      for (i in names(vals$tables)){local({
+        i<-i
+        output[[i]] <- DT::renderDataTable(vals$tables[[i]],options = list(pageLength = 10, width="100%", scrollX = TRUE))  
+      })}
+      return(vals$datatags)
+    })})
+    
+    output$statistics <- renderUI({h3(paste('Total AUM (USD):',vals$queriedAUM))})
+      
+  }) 
+  
+  
+      
+  ########### Modify,Initialise Reference AUM ##############    
+  observeEvent(input$updateaum,{
+    showModal(modalDialog(title = "ALERT",
+                          "ARE YOU SURE OF THE CHANGES?",
+                          easyClose = FALSE,
+                          footer = tagList(modalButton("Cancel"),
+                                           actionButton("confirmchange", "OK"))))
+    if (input$confirmchange){
+      removeModal()
+      refaum <- vals$queriedAUM
+      if (refaum != 0){
+        change <- input$modifyaum
+        if (substr(change,start=1,stop = 1) == '+'){
+          new_refaum <- refaum + as.numeric(substr(change,start=2,stop=nchar(change)))
+          saveclientAUM(new_refaum,input$name3)
+          showModal(modalDialog(title = "ALERT",
+                                "CHANGES SUCCESSFULLY MADE!",
+                                easyClose = TRUE,
+                                footer = NULL))
+        }
+        else if (substr(change,start=1,stop = 1) == '-'){
+          new_refaum <- refaum - as.numeric(substr(change,start=2,stop=nchar(change)))
+          saveclientAUM(new_refaum,input$name3)
+          showModal(modalDialog(title = "ALERT",
+                                "CHANGES SUCCESSFULLY MADE!",
+                                easyClose = TRUE,
+                                footer = NULL))
+        }
+        else{
+          saveclientAUM(as.numeric(change),input$name3)
+          showModal(modalDialog(title = "ALERT",
+                                "CHANGES SUCCESSFULLY MADE!",
+                                easyClose = TRUE,
+                                footer = NULL))
+        }
+      }
     }
-    for (i in names(vals$tables)){local({
-      i<-i
-      print(vals$tables[[i]])
-      output[[i]] <- DT::renderDataTable({vals$tables[[i]]},options = list(pageLength = 10, width="100%", scrollX = TRUE))
-    })}
-    output$datatables <- renderUI({isolate{vals$datatags}})
-      
-  })
-      
-      
-      
+    
+  })    
       
       
       

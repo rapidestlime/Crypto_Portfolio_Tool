@@ -1,11 +1,4 @@
-source("usePackages.R")
-pkgnames <- c("tidyverse","shiny","DBI","jsonlite","shinydashboard","shinyWidgets","lubridate","hash","RSQLite")
-loadPkgs(pkgnames)
-library(httr)
-library(jsonlite)
-library(plyr)
-library(data.table)
-library(rlist)
+library(logger)
 
 
 
@@ -16,8 +9,9 @@ getportfolio1 <- function(wallet){
   # Fantom: Zapper, Optimism: Zapper
   # Subject to future changes depending on provider coverage
   
-  outputtags <- list() # list of tags to be outputted
-  outputtables <- list() # list of data tables to be referenced at last part of function
+  outputtags <- tagList() # list of tags to be outputted
+  outputtables <- hash() # list of data tables to be referenced at last part of function
+  networth <- is.numeric(0)
   zapper <- c('ethereum','xdai','optimism','fantom') #zapper use
   staketype <- c('masterchef','geyser','gauge','single-staking') #zapper use
     
@@ -25,20 +19,29 @@ getportfolio1 <- function(wallet){
   
   
   ######### zapper networks ############
-  supportedlink <- paste0(paste0('https://api.zapper.fi/v1/protocols/balances/supported?addresses%5B%5D=',priwallet),'&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241')
+  supportedlink <- paste0(paste0('https://api.zapper.fi/v1/protocols/balances/supported?addresses%5B%5D=',wallet),'&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241')
   supported <- GET(supportedlink)
   zappersupported <- fromJSON(rawToChar(supported$content))
+  log_info('Zapper scrap successful!')
   for (nw in zapper) {
-  ethindex <- which(zappersupported$network == nw)
-  if (ethindex != integer(0)){
-    outputtags <- list(outputtags, h2(paste0(str_to_title(nw),' Network')))
+  #ethindex <- which(zappersupported$network == nw)
+  if (nw %in% zappersupported$network){
+    ethindex <- which(zappersupported$network == nw)
+    outputtags <- tagAppendChild(outputtags, h2(paste0(str_to_title(nw),' Network')))
+    log_info('Handling Zapper {nw} Network now!')
     for (e in ldply(zappersupported$protocols[ethindex], data.frame)$protocol){
-      datalink <- sprintf('https://api.zapper.fi/v1/protocols/%s/balances?addresses%s%s&network=%s&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241',e,'%5B%5D=',wallet,nw)
+      datalink <- paste('https://api.zapper.fi/v1/protocols/',e,'/balances?addresses%5B%5D=',wallet,'&network=',nw,'&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241',sep='')
+      log_info('Getting Zapper {nw} Network: {e}!')
       data <- fromJSON(rawToChar(GET(datalink)$content))
-      if (eval(parse(text=sprintf("data$'%s'$products"))) != list()) {
-      outputtags <- list(outputtags, h3(paste0(str_to_title(e),' Protocol')))
-      outputtables[[paste0(e,nw)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame) %>% select(type,category,symbol,label,protocol,price,balance,balanceUSD)
-      outputtags <- list(outputtags,DT::dataTableOutput(paste0(e,nw)))
+      cond <- eval(parse(text=sprintf("data$'%s'$products",wallet)))
+      log_info('Checking Zapper {nw} Network: {e}!')
+      if (length(cond) != 0) {
+      log_info('Handling Zapper {nw} Network: {e}!')
+      outputtags <- tagAppendChild(outputtags, h3(paste0(str_to_title(e),' Protocol')))
+      outputtables[[paste0(e,nw)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame) %>% select(type,category,symbol,label,price,balance,balanceUSD)
+      networth <- networth + sum(outputtables[[paste0(e,nw)]]$balanceUSD)
+      outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste0(e,nw)))
+      log_info('Handling Zapper {nw} Network: {e} is successful!')
       }
     }}} 
   
@@ -48,32 +51,37 @@ getportfolio1 <- function(wallet){
   
   for (n in zapper){
     for (s in staketype){
+      log_info('Getting Zapper {n} Network Stake Type {s}!')
       datalink <- sprintf('https://api.zapper.fi/v1/staked-balance/%s?addresses%s=%s&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241&network=%s',s,'%5B%5D',wallet,n)
       data <- fromJSON(rawToChar(GET(datalink)$content))
-      print(data)
-      if (length(eval(parse(text=sprintf("data$'%s'",wallet)))) != list() ){
+      log_info('Checking Zapper {n} Network Stake Type {s}!')
+      if (length(eval(parse(text=sprintf("data$'%s'",wallet)))) != 0 ){
+        log_info('Handling Zapper {n} Network Stake Type {s}!')
         if (n != prevnet){
-          outputtags <- list(outputtags,h2(paste0(str_to_title(n),' Network (Staking)')))
+          outputtags <- tagAppendChild(outputtags,h2(paste0(str_to_title(n),'Network (Staking)')))
           prevnet <- n
         }
         rows <- as.numeric(length(eval(parse(text=sprintf("data$'%s'$label",wallet)))))
         newdata <- eval(parse(text=sprintf("data$'%s'",wallet)))
         for (i in seq(from = 1, to = rows)){
           if (newdata$protocolDisplay[[i]] != prevfarm){
-            outputtags <- list(outputtags,h3(str_to_title(newdata$protocolDisplay[[i]])))
+            outputtags <- tagAppendChild(outputtags,h3(str_to_title(newdata$protocolDisplay[[i]])))
             prevfarm <- newdata$protocolDisplay[[i]]
           }
-          outputtags <- list(outputtags,h4(newdata$symbol[[i]]))
-          outputtags <- list(outputtags,h5('Tokens Staked'))
-          outputtags <- list(outputtags,DT::dataTableOutput(paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked' )))
-          outputtables[[paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked')]] <- ldply(newdata$tokens[[i]],data.frame) %>% select(symbol,price,balance,balanceUSD)
-          outputtags <- list(outputtags,h5('Tokens Rewards'))
-          outputtags <- list(outputtags,DT::dataTableOutput(paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]], 'Token Rewards' )))
-          outputtables[[paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]], 'Token Rewards' )]] <- ldply(newdata$rewardTokens[[i]],data.frame) %>% select(symbol,price,balance,balanceUSD)
+          outputtags <- tagAppendChild(outputtags,h4(newdata$symbol[[i]]))
+          outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+          outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked' )))
+          outputtables[[paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked')]] <- as.data.frame(newdata$tokens[[i]]) %>% select(symbol,price,balance,balanceUSD)
+          networth <- networth + sum(as.data.frame(newdata$tokens[[i]])$balanceUSD)
+          outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+          outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]], 'Token Rewards' )))
+          outputtables[[paste(n,s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Token Rewards' )]] <- as.data.frame(newdata$rewardTokens[[i]]) %>% select(symbol,price,balance,balanceUSD)
+          networth <- networth + sum(as.data.frame(newdata$rewardTokens[[i]])$balanceUSD)
         }
+        log_info('Handling Zapper {n} Network Stake Type {s} successful!')
       }
       else{
-        
+        log_info('Nothing in Zapper {n} Network Stake Type {s}!')
       }
     }
   }
@@ -83,25 +91,28 @@ getportfolio1 <- function(wallet){
   
   
   ########## apeboard networks ############
-  apirepo <- read.csv('API.csv',headers=TRUE)
-  
+  apirepo <- read.csv('API.csv',header=TRUE)
+  colnames(apirepo) <- c('bsc','matic','terra','solana')
+  log_info('Reading API.csv file successful!')
   
   ######### Binance Smart Chain############
-  bscwallet <- GET(paste0('https://api.apeboard.finance/wallet/bsc/',wallet))
+  log_info('Handling Apeboard BSC Wallet!')
+  bscwallet <- GET(paste0("https://api.apeboard.finance/wallet/bsc/",wallet))
   bscwallet <- fromJSON(rawToChar(bscwallet$content)) 
-  bscwallet <- as.data.frame(bscwallet) %>% select(-id,-logo,-decimals,-address) %>% mutate(balanceUSD = price*balance)
-  outputtags <- list(outputtags,h2('Binance-Smart-Chain Network'))
-  outputtags <- list(outputtags,h3('Token Protocol'))
-  outputtags <- list(outputtags, DT::dataTableOutput(paste('Binance-Smart-Chain','Token Protocol')) )
+  bscwallet <- as.data.frame(bscwallet) %>% select(-logo,-decimals,-address,-extensions,-source,-createdAt,-modifiedAt) %>% mutate(balanceUSD = price*balance)
+  outputtags <- tagAppendChild(outputtags,h2('Binance-Smart-Chain Network'))
+  outputtags <- tagAppendChild(outputtags,h3('Token Protocol'))
+  outputtags <- tagAppendChild(outputtags, DT::dataTableOutput(paste('Binance-Smart-Chain','Token Protocol')))
   outputtables[[paste('Binance-Smart-Chain','Token Protocol')]] <- bscwallet
-  
+  networth <- networth + sum(bscwallet$balanceUSD)
+  log_info('Handling Apeboard BSC Wallet successful!')
   
   # function to check if json response empty
   jsonchecker <- function(data){
     elements <- names(data)
     not_empty <- c()
     for (i in elements){
-      if (data[[i]] != list()){
+      if (length(data[[i]]) != 0){
         not_empty <- c(not_empty,i) #json data exist
       }
     }
@@ -109,109 +120,383 @@ getportfolio1 <- function(wallet){
   } 
   
   for (link in apirepo$bsc){
+    log_info('Handling Apeboard BSC {link}')
     data <- GET(paste0(link,wallet))
     data <- fromJSON(rawToChar(data$content))
     occupied <- jsonchecker(data)
-    if (occupied != c()){
+    log_info('Checking Apeboard BSC {link} with occupied data {occupied}')
+    if (length(occupied) != 0){
       protocol <- str_sub(strsplit(link,'/')[[1]][4],end=-4)
-      outputtags <- list(outputtags,h3(str_to_title(protocol)))
+      outputtags <- tagAppendChild(outputtags,h3(str_to_title(protocol)))
+      log_info('Handling Apeboard BSC {protocol}')
       for (e in occupied){
         if (e == 'vaults'){
-          outputtags <- list(outputtags,h4('Vaults'))
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Vaults'))
           amt <- length(data[[e]][['tokens']])
           for (i in seq(from=1, to=amt)){
             tokens <- data[[e]][['tokens']][[i]]
-            if (length(data[[e]][['tokens']][[i]])==2){
-              pair <- paste0(paste0(data[[e]][['tokens']][[i]]['symbol'][[1]],'/'),data[[e]][['tokens']][[i]]['symbol'][[2]])
-              outputtags <- list(outputtags,h4(pair))
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
             }
             else{
-              outputtags <- list(outputtags,h4(data[[e]][['tokens']][[i]]['symbol'][[1]]))
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
             }
-            outputtags <- list(outputtags,h5('Tokens Staked'))
-            outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
-            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
-            if(eval(parse(paste0("data[[e]][['rewards']][[i]]",'$balance'))) != NULL){
-              outputtags <- list(outputtags,h5('Tokens Rewards'))
-              outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
-              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-lpAddress,-logo,-address) %>% mutate(balanceUSD = price*balance)
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            print(data[[e]][['tokens']][[i]])
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]]$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
             }
           }
+          log_info('Handling Apeboard BSC {protocol} {e} overall successful')
         }
         
-        if (e == 'farms'){ 
-          outputtags <- list(outputtags,h4('Farms'))
+        if (e == 'farms'){
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Farms'))
           amt <- length(data[[e]][['tokens']])
           for (i in seq(from=1, to=amt)){
             tokens <- data[[e]][['tokens']][[i]]
-            if (length(data[[e]][['tokens']][[i]])==2){
-              pair <- paste0(paste0(data[[e]][['tokens']][[i]]['symbol'][[1]],'/'),data[[e]][['tokens']][[i]]['symbol'][[2]])
-              outputtags <- list(outputtags,h4(pair))
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
             }
             else{
-              outputtags <- list(outputtags,h4(data[[e]][['tokens']][[i]]['symbol'][[1]]))
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
             }
-            outputtags <- list(outputtags,h5('Tokens Staked'))
-            outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
-            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
-            if(eval(parse(paste0("data[[e]][['rewards']][[i]]",'$balance'))) != NULL){
-              outputtags <- list(outputtags,h5('Tokens Rewards'))
-              outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
-              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-lpAddress,-logo,-address) %>% mutate(balanceUSD = price*balance)
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]]$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance" ))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
             }
           }
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'lendings'){
-          # need test example  
+          # need test example (e.g. alphahomora cannot find)
         }
         
         if (e == 'grazes'){
-          # need test example  
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Grazing'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens['symbol'][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'stakings'){
-          # need test example  
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Stakings'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'positions'){
-          # need test example  
+          # need test example (rewards for badgerbsc cannot find)
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Positions'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #print(data[[e]][['tokens']][[i]])
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'borrows'){
-          outputtags <- list(outputtags,h4('Borrowings'))
-          outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',protocol,'Borrowings')))
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Borrowings'))
+          outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,'Borrowings')))
           outputtables[[paste('bsc',protocol,'Borrowings')]] <- ldply(data[[e]][['tokens']],data.frame) %>% select(-logo,-address) %>% mutate(balanceUSD = -price*balance)
+          networth <- networth + sum(outputtables[[paste('bsc',protocol,'Borrowings')]]$balanceUSD)
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'deposits'){
-          outputtags <- list(outputtags,h4('Deposits'))
-          outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',protocol,'Deposits')))
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Deposits'))
+          outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,'Deposits')))
           outputtables[[paste('bsc',protocol,'Deposits')]] <- ldply(data[[e]][['tokens']],data.frame) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+          networth <- networth + sum(outputtables[[paste('bsc',protocol,'Deposits')]]$balanceUSD)
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'stake'){
-          # need test example 
+          # need test example ellipsis
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Stake'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              print('test61')
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              print('test62')
+              pair <- tokens[['symbol']][[1]]
+              print('test62')
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #print(data[[e]][['tokens']][[i]])
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              print('test8')
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} {e} overalldata successful')
         }
         
         if (e == 'boardroom'){
-          # need test example
+          # need test example (e.g. MDEX)
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Boardroom'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #print(data[[e]][['tokens']][[i]])
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              print('test8')
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'vault'){
-          # need test example
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Vault'))
+          outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e)))
+          outputtables[[paste('bsc',protocol,e)]] <- as.data.frame(data[[e]][['tokens']]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+          networth <- networth + sum(outputtables[[paste('bsc',protocol,e)]]$balanceUSD)
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'syrup'){
-          # need test example
+          # need test example (e,g. pancakeswap)???? ---- need further tests :(
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Syrup'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #print(data[[e]][['tokens']][[i]])
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
         }
         
         if (e == 'mintings'){
-          # need test example
+          # need test example (e.g. venus) ?????
         }
         
         if (e == 'locked'){
-          # need test example
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Locked'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #print(data[[e]][['tokens']][[i]])
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} {e} overall data successful')
+        }
+        
+        if (e == 'pools'){
+          log_info('Handling Apeboard BSC {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Pools'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(tokens[['symbol']][[1]],'/',tokens[['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- tokens[['symbol']][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
+            #print(data[[e]][['tokens']][[i]])
+            #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
+            networth <- networth + sum(data1$balanceUSD)
+            log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard BSC {protocol} {e} tokens reward data successful')
+            }
+          }
+          log_info('Handling Apeboard BSC {protocol} overall data successful')
         }
       }
     }
@@ -220,48 +505,58 @@ getportfolio1 <- function(wallet){
   
   bsczapper <- c('1inch','harvest','bzx') #for bsc protocols outside Apeboard
   for (e in bsczapper){
-    exist <- NULL
-    datalink <- sprintf('https://api.zapper.fi/v1/protocols/%s/balances?addresses%s%s&network=%s&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241',e,'%5B%5D=',wallet,'binance-smart-chain ')
+    log_info('Getting Zapper BSC {e}')
+    datalink <- sprintf('https://api.zapper.fi/v1/protocols/%s/balances?addresses%s%s&network=%s&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241',e,'%5B%5D=',wallet,'binance-smart-chain')
     data <- fromJSON(rawToChar(GET(datalink)$content))
-    if (eval(parse(text=sprintf("data$'%s'$products"))) != list()) {
-      outputtags <- list(outputtags, h3(paste0(str_to_title(e),' Protocol')))
+    log_info('Checking Zapper BSC {e}')
+    if (exists(sprintf(text="data$'%s'$products",wallet))) {
+      log_info('Handling Zapper BSC {e}')
+      outputtags <- tagAppendChild(outputtags, h3(paste0(str_to_title(e),' Protocol')))
       outputtables[[paste0(e,'bsc')]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame)
-      outputtags <- list(outputtags,DT::dataTableOutput(paste0(e,'bsc')))
+      networth <- networth + sum(outputtables[[paste(e,'bsc')]]$balanceUSD)
+      outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste0(e,'bsc')))
+      log_info('Handling Zapper BSC {e} successful')
     }
   }
     
     prevfarm <- 1
     
     for (s in staketype){
+      log_info('Getting Zapper BSC stake type: {s}')
       datalink <- sprintf('https://api.zapper.fi/v1/staked-balance/%s?addresses%s=%s&api_key=96e0cc51-a62e-42ca-acee-910ea7d2a241&network=%s',s,'%5B%5D',wallet,'binance-smart-chain')
       data <- fromJSON(rawToChar(GET(datalink)$content))
-      print(data)
-      if (length(eval(parse(text=sprintf("data$'%s'",wallet)))) != list() ){
+      log_info('Checking Zapper BSC stake type {s}')
+      if (length(eval(parse(text=sprintf("data$'%s'",wallet)))) != 0){
+        log_info('Handling Zapper BSC stake type {s}')
         rows <- as.numeric(length(eval(parse(text=sprintf("data$'%s'$label",wallet)))))
         newdata <- eval(parse(text=sprintf("data$'%s'",wallet)))
+        log_info('Checking if Zapper BSC networks in data...')
         for (i in seq(from = 1, to = rows)){
           if (newdata$protocol[[i]] %in% bsczapper){
             if (newdata$protocol[[i]] != prevfarm){
-              outputtags <- list(outputtags,h3(str_to_title(newdata$protocolDisplay[[i]])))
+              outputtags <- tagAppendChild(outputtags,h3(str_to_title(newdata$protocolDisplay[[i]])))
               prevfarm <- newdata$protocol[[i]]
             }
-            outputtags <- list(outputtags,h4(newdata$symbol[[i]]))
-            outputtags <- list(outputtags,h5('Tokens Staked'))
-            outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked' )))
+            outputtags <- tagAppendChild(outputtags,h4(newdata$symbol[[i]]))
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked')))
             outputtables[[paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked')]] <- ldply(newdata$tokens[[i]],data.frame) %>% select(symbol,price,balance,balanceUSD)
-            outputtags <- list(outputtags,h5('Tokens Rewards'))
-            outputtags <- list(outputtags,DT::dataTableOutput(paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]], 'Token Rewards' )))
-            outputtables[[paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]], 'Token Rewards' )]] <- ldply(newdata$rewardTokens[[i]],data.frame) %>% select(symbol,price,balance,balanceUSD)
+            networth <- networth + sum(outputtables[[paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Staked')]]$balanceUSD)
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Token Rewards')))
+            outputtables[[paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Token Rewards')]] <- ldply(newdata$rewardTokens[[i]],data.frame) %>% select(symbol,price,balance,balanceUSD)
+            networth <- networth + sum(outputtables[[paste('bsc',s,newdata$protocolDisplay[[i]],newdata$symbol[[i]],'Tokens Rewards')]]$balanceUSD)
           }
         }
       }
       else{
-        
+        log_info('Nothing found in Zapper BSC stake type {s}')  
       }
+      log_info('Handling Zapper BSC stake type {s} completed')
     }
   
   
-  
+   log_info('Handling BSC overall data completed!')
   
   
   
@@ -276,77 +571,156 @@ getportfolio1 <- function(wallet){
   
   
   ############### Polygon #################
-  
+  log_info('Handling Apeboard Polygon wallet')
   maticwallet <- GET(paste0('https://api.apeboard.finance/wallet/matic/',wallet))
   maticwallet <- fromJSON(rawToChar(maticwallet$content))
-  outputtags <- list(outputtags,h2('Polygon Network'))
-  if (maticwallet != list()){
-  maticwallet <- as.data.frame(maticwallet) %>% select(-id,-logo,-decimals,-address) %>% mutate(balanceUSD = price*balance)
-  
-  outputtags <- list(outputtags,h3('Token Protocol'))
-  outputtags <- list(outputtags, DT::dataTableOutput(paste('Polygon','Token Protocol')) )
+  outputtags <- tagAppendChild(outputtags,h2('Polygon Network'))
+  print(maticwallet)
+  if (length(maticwallet) != 0){
+  maticwallet <- as.data.frame(maticwallet) %>% select(-id,-logo,-decimals,-address) %>% mutate(balanceUSD = price*balance) 
+  outputtags <- tagAppendChild(outputtags,h3('Token Protocol'))
+  outputtags <- tagAppendChild(outputtags, DT::dataTableOutput(paste('Polygon','Token Protocol')))
   outputtables[[paste('Polygon','Token Protocol')]] <- maticwallet
+  networth <- networth + sum(maticwallet$balanceUSD)
   }
+  log_info('Handling Apeboard Polygon wallet completed')
   
   
-  
-  for (link in apirepo$matic){
+  for (link in (apirepo$matic %>% na_if("") %>% na.omit)){
+    log_info('Getting Apeboard Polygon {link}')
     data <- GET(paste0(link,wallet))
     data <- fromJSON(rawToChar(data$content))
     occupied <- jsonchecker(data)
-    if (occupied != c()){
+    log_info('Checking Apeboard Polygon {link} with occupied data: {occupied}')
+    if (length(occupied) != 0){
       protocol <- str_sub(strsplit(link,'/')[[1]][4],end=-6)
-      outputtags <- list(outputtags,h3(str_to_title(protocol)))
+      outputtags <- tagAppendChild(outputtags,h3(str_to_title(protocol)))
+      log_info('Handling Apeboard Polygon {protocol}')
       for (e in occupied){
         if (e == 'vaults'){
-          # need test example
-        }
-        
-        if (e == 'farms'){
-          outputtags <- list(outputtags,h4('Farms'))
+          # need test example polycat
+          log_info('Handling Apeboard Polygon {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Vaults'))
           amt <- length(data[[e]][['tokens']])
           for (i in seq(from=1, to=amt)){
             tokens <- data[[e]][['tokens']][[i]]
-            if (length(data[[e]][['tokens']][[i]]['symbol'])==2){
-              pair <- paste0(paste0(data[[e]][['tokens']][[i]]['symbol'][[1]],'/'),data[[e]][['tokens']][[i]]['symbol'][[2]])
-              outputtags <- list(outputtags,h4(pair))
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(data[[e]][['tokens']][[i]][['symbol']][[1]],'/',data[[e]][['tokens']][[i]][['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
             }
             else{
-              outputtags <- list(outputtags,h4(data[[e]][['tokens']][[i]]['symbol'][[1]]))
+              pair <- data[[e]][['tokens']][[i]]['symbol'][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
             }
-            outputtags <- list(outputtags,h5('Tokens Staked'))
-            outputtags <- list(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Staked')))
-            outputtables[[paste('matic',protocol,e,pair,'Tokens Staked')]] <- as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = -price*balance)  
-            if(eval(parse(paste0("data[[e]][['rewards']][[i]]",'$balance'))) != NULL){
-              outputtags <- list(outputtags,h5('Tokens Rewards'))
-              outputtags <- list(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Rewards')))
-              outputtables[[paste('matic',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-lpAddress,-logo,-address) %>% mutate(balanceUSD = price*balance)
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Staked')))
+            outputtables[[paste('matic',protocol,e,pair,'Tokens Staked')]] <- as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+            networth <- networth + sum(outputtables[[paste('matic',protocol,e,pair,'Tokens Staked')]]$balanceUSD)
+            log_info('Handling Apeboard Polygon {protocol} {e} token staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]",'$balance'))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('matic',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('matic',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard Polygon {protocol} {e} token rewards data successful')
             }
           }
+          log_info('Handling Apeboard Polygon {protocol} {e} overall data successful')
+        }
+        
+        if (e == 'farms'){
+          log_info('Handling Apeboard Polygon {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Farms'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(data[[e]][['tokens']][[i]][['symbol']][[1]],'/',data[[e]][['tokens']][[i]][['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- data[[e]][['tokens']][[i]]['symbol'][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Staked')))
+            outputtables[[paste('matic',protocol,e,pair,'Tokens Staked')]] <- as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+            networth <- networth + sum(outputtables[[paste('matic',protocol,e,pair,'Tokens Staked')]]$balanceUSD)
+            log_info('Handling Apeboard Polygon {protocol} {e} token staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]",'$balance'))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('matic',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('matic',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard Polygon {protocol} {e} token rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard Polygon {protocol} {e} overall data successful')
         }
         
         
         if (e == 'positions'){
-          # need test example
+          # need test example quickswap
+          log_info('Handling Apeboard Polygon {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h4('Positions'))
+          amt <- length(data[[e]][['tokens']])
+          for (i in seq(from=1, to=amt)){
+            tokens <- data[[e]][['tokens']][[i]]
+            if (length(tokens[['symbol']])==2){
+              pair <- paste(data[[e]][['tokens']][[i]][['symbol']][[1]],'/',data[[e]][['tokens']][[i]][['symbol']][[2]])
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            else{
+              pair <- data[[e]][['tokens']][[i]]['symbol'][[1]]
+              outputtags <- tagAppendChild(outputtags,h4(pair))
+            }
+            outputtags <- tagAppendChild(outputtags,h5('Tokens Staked'))
+            outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Staked')))
+            outputtables[[paste('matic',protocol,e,pair,'Tokens Staked')]] <- as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+            networth <- networth + sum(outputtables[[paste('matic',protocol,e,pair,'Tokens Staked')]]$balanceUSD)
+            log_info('Handling Apeboard Polygon {protocol} {e} token staked data successful')
+            if(exists(paste0("data[[e]][['rewards']][[i]]",'$balance'))){
+              outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
+              outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,e,pair,'Tokens Rewards')))
+              outputtables[[paste('matic',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              networth <- networth + sum(outputtables[[paste('matic',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
+              log_info('Handling Apeboard Polygon {protocol} {e} token rewards data successful')
+            }
+          }
+          log_info('Handling Apeboard Polygon {protocol} {e} overall data successful')
         }
         
         if (e == 'borrows'){
-          outputtags <- list(outputtags,h3('Borrowings'))
-          outputtags <- list(outputtags,DT::dataTableOutput(paste('matic',protocol,'Borrowings')))
+          log_info('Handling Apeboard Polygon {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h3('Borrowings'))
+          outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,'Borrowings')))
           outputtables[[paste('matic',protocol,'Borrowings')]] <- ldply(data[[e]][['tokens']],data.frame) %>% select(-logo,-address) %>% mutate(balanceUSD = -price*balance)
+          networth <- networth + sum(outputtables[[paste('matic',protocol,'Borrowings')]]$balanceUSD)
+          log_info('Handling Apeboard Polygon {protocol} {e} overall data successful')
         }
         
         if (e == 'deposits'){
-          outputtags <- list(outputtags,h3('Deposits'))
-          outputtags <- list(outputtags,DT::dataTableOutput(paste('matic',protocol,'Deposits')))
+          log_info('Handling Apeboard Polygon {protocol} {e}')
+          outputtags <- tagAppendChild(outputtags,h3('Deposits'))
+          outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('matic',protocol,'Deposits')))
           outputtables[[paste('matic',protocol,'Deposits')]] <- ldply(data[[e]][['tokens']],data.frame) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+          networth <- networth + sum(outputtables[[paste('matic',protocol,'Deposits')]]$balanceUSD)
+          log_info('Handling Apeboard Polygon {protocol} {e} overall data successful')
         }
         
       }
     }
   }   
-  
-  
-return(list(tags=outputtags,tables=outputtables)) 
+log_info('Handling Apeboard Polygon overall data completed')  
+
+return(hash(tags=outputtags,tables=outputtables,net=networth)) 
                      
 }
+
+
+ 
+
+########testing part##########3
+#data <- getportfolio1('0x58bbae0159117a75225e72d941dbe35ffd99f894')
+#data$tags
+

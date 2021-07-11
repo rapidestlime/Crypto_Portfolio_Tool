@@ -24,6 +24,7 @@ sqlQueryExecuteFromSqlitePath <- function(strPath,query){
   dbClearResult(result)
   #Disconnect from the database
   dbDisconnect(conn)
+  result
 }
 
 
@@ -106,3 +107,16 @@ updateclientwallet <- function(name,priwallet,secwallet,terrawallet,solanawallet
   }
 }
 
+getclientAUM <- function(name){
+  conn <- dbConnect(RSQLite::SQLite(), dbpath)
+  querytemplate <- "SELECT * FROM ClientPerformance WHERE ClientName = ?id1"
+  query<- sqlInterpolate(conn, querytemplate,id1=name)
+  sqlQueryGetFromSqlitePath(dbpath,query)$ClientRefAUM
+}
+  
+saveclientAUM <- function(newaum,name){
+  conn <- dbConnect(RSQLite::SQLite(), dbpath)
+  querytemplate <- "UPDATE ClientPerformance SET ClientRefAUM= ?id1 WHERE ClientName = ?id2"
+  query<- sqlInterpolate(conn, querytemplate,id1=newaum,id2=name)
+  sqlQueryExecuteFromSqlitePath(dbpath,query)
+}

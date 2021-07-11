@@ -399,7 +399,9 @@ server <- function(input, output, session) {
                           easyClose = FALSE,
                           footer = tagList(modalButton("Cancel"),
                                            actionButton("confirmchange", "OK"))))
-    if (input$confirmchange){
+  })    
+      
+  observeEvent(input$confirmchange,{
       removeModal()
       refaum <- vals$queriedAUM
       if (refaum != 0){
@@ -428,11 +430,8 @@ server <- function(input, output, session) {
                                 footer = NULL))
         }
       }
-    }
     
   })    
-      
-      
       
       
       

@@ -38,7 +38,7 @@ getportfolio1 <- function(wallet){
       if (length(cond) != 0) {
       log_info('Handling Zapper {nw} Network: {e}!')
       outputtags <- tagAppendChild(outputtags, h3(paste0(str_to_title(e),' Protocol')))
-      outputtables[[paste0(e,nw)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame) %>% select(type,category,symbol,label,price,balance,balanceUSD)
+      outputtables[[paste0(e,nw)]] <- ldply(eval(parse(text=sprintf("data$'%s'$products$assets",wallet))),data.frame) %>% select(type,category,symbol,price,balance,balanceUSD)
       networth <- networth + sum(outputtables[[paste0(e,nw)]]$balanceUSD)
       outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste0(e,nw)))
       log_info('Handling Zapper {nw} Network: {e} is successful!')

@@ -16,6 +16,11 @@ getportfolio2 <- function(terra,solana){
   
   apirepo <- read.csv('API.csv',header=TRUE)
   colnames(apirepo) <- c('bsc','matic','terra','solana')
+  credentials <- add_headers(origin= 'https://apeboard.finance',            #for apeboard api access credentials
+                             passcode= '5a102a34f60fa7ec9d643a8a0e72cab9', 
+                             referer= 'https://apeboard.finance/')
+  
+  
   
   # function to check if json response empty
   jsonchecker <- function(data){
@@ -35,7 +40,7 @@ getportfolio2 <- function(terra,solana){
   ############# Terra ################
   log_info('Handling Apeboard Terra wallet')
   if (!is.na(terra)) {
-  terrawallet <- GET(paste0('https://api.apeboard.finance/wallet/terra/',terra))
+  terrawallet <- GET(paste0('https://api.apeboard.finance/wallet/terra/',terra),credentials)
   terrawallet <- fromJSON(rawToChar(terrawallet$content))
   outputtags <- list(outputtags,h2('Terra Network'))
   if (length(terrawallet) != 0){
@@ -50,7 +55,7 @@ getportfolio2 <- function(terra,solana){
   
   for (link in (apirepo$terra %>% na_if("") %>% na.omit)){
     log_info('Getting Apeboard Terra {link}')
-    data <- GET(paste0(link,terra))
+    data <- GET(paste0(link,terra),credentials)
     data <- fromJSON(rawToChar(data$content))
     occupied <- jsonchecker(data)
     log_info('Checking Apeboard Terra {link} with occupied data: {occupied}')
@@ -202,7 +207,7 @@ getportfolio2 <- function(terra,solana){
   ############ Solana #################
   if (!is.na(solana )){
   log_info('Handling Apeboard Solana Wallet')
-  solanawallet <- GET(paste0('https://api.apeboard.finance/wallet/solana/',solana))
+  solanawallet <- GET(paste0('https://api.apeboard.finance/wallet/solana/',solana),credentials)
   solanawallet <- fromJSON(rawToChar(solanawallet$content))
   outputtags <- list(outputtags,h2('Solana Network'))
   if (length(solanawallet) != 0){

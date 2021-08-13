@@ -214,6 +214,21 @@ ui <- dashboardPage(skin= "purple",
                            font-family: Times New Roman;
                            align: center;'
                          ),
+                         tags$h4(
+                           'Tips:
+                           <br/>
+                           - Include (+) to increment Reference AUM for queried client
+                           <br/>
+                           - Include (-) to decrement Reference AUM for queried client
+                           <br/>
+                           - Change Reference AUM completely without including signs
+                           <br/>
+                           - Use Initialise for newly onboarded clients
+                           ',
+                           style='color: #FF0000;
+                           font-family: Times New Roman;
+                           align: center;'
+                         ),
                          textInput("modifyaum",NULL,width="50%"),
                          actionButton("updateaum","UPDATE"),
                          actionButton("initialiseaum","INITIALISE")

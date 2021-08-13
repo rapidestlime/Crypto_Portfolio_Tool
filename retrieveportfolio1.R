@@ -93,11 +93,15 @@ getportfolio1 <- function(wallet){
   ########## apeboard networks ############
   apirepo <- read.csv('API.csv',header=TRUE)
   colnames(apirepo) <- c('bsc','matic','terra','solana')
+  credentials <- add_headers(origin= 'https://apeboard.finance',            #for apeboard api access credentials
+                             passcode= '5a102a34f60fa7ec9d643a8a0e72cab9', 
+                             referer= 'https://apeboard.finance/')
+  
   log_info('Reading API.csv file successful!')
   
   ######### Binance Smart Chain############
   log_info('Handling Apeboard BSC Wallet!')
-  bscwallet <- GET(paste0("https://api.apeboard.finance/wallet/bsc/",wallet))
+  bscwallet <- GET(paste0("https://api.apeboard.finance/wallet/bsc/",wallet),credentials)
   bscwallet <- fromJSON(rawToChar(bscwallet$content)) 
   bscwallet <- as.data.frame(bscwallet) %>% select(-logo,-decimals,-address,-extensions,-source,-createdAt,-modifiedAt) %>% mutate(balanceUSD = price*balance)
   outputtags <- tagAppendChild(outputtags,h2('Binance-Smart-Chain Network'))
@@ -121,7 +125,7 @@ getportfolio1 <- function(wallet){
   
   for (link in apirepo$bsc){
     log_info('Handling Apeboard BSC {link}')
-    data <- GET(paste0(link,wallet))
+    data <- GET(paste0(link,wallet),credentials)
     data <- fromJSON(rawToChar(data$content))
     occupied <- jsonchecker(data)
     log_info('Checking Apeboard BSC {link} with occupied data {occupied}')
@@ -572,7 +576,7 @@ getportfolio1 <- function(wallet){
   
   ############### Polygon #################
   log_info('Handling Apeboard Polygon wallet')
-  maticwallet <- GET(paste0('https://api.apeboard.finance/wallet/matic/',wallet))
+  maticwallet <- GET(paste0('https://api.apeboard.finance/wallet/matic/',wallet),credentials)
   maticwallet <- fromJSON(rawToChar(maticwallet$content))
   outputtags <- tagAppendChild(outputtags,h2('Polygon Network'))
   print(maticwallet)
@@ -588,7 +592,7 @@ getportfolio1 <- function(wallet){
   
   for (link in (apirepo$matic %>% na_if("") %>% na.omit)){
     log_info('Getting Apeboard Polygon {link}')
-    data <- GET(paste0(link,wallet))
+    data <- GET(paste0(link,wallet),credentials)
     data <- fromJSON(rawToChar(data$content))
     occupied <- jsonchecker(data)
     log_info('Checking Apeboard Polygon {link} with occupied data: {occupied}')

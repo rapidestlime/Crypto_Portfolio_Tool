@@ -455,14 +455,14 @@ getportfolio1 <- function(wallet){
             outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Staked'))) 
             #print(data[[e]][['tokens']][[i]])
             #as.data.frame(data[[e]][['tokens']][[i]]) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
-            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = price*balance)
+            data1 <- as.data.frame(tokens) %>% select(-address,-logo) %>% mutate(balanceUSD = as.numeric(price)*as.numeric(balance))
             outputtables[[paste('bsc',protocol,e,pair,'Tokens Staked')]] <- data1
             networth <- networth + sum(data1$balanceUSD)
             log_info('Handling Apeboard BSC {protocol} {e} tokens staked data successful')
             if(exists(paste0("data[[e]][['rewards']][[i]]","$balance"))){
               outputtags <- tagAppendChild(outputtags,h5('Tokens Rewards'))
               outputtags <- tagAppendChild(outputtags,DT::dataTableOutput(paste('bsc',protocol,e,pair,'Tokens Rewards')))
-              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = price*balance)
+              outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]] <- as.data.frame(data[[e]][['rewards']][[i]]) %>% select(-logo,-address) %>% mutate(balanceUSD = as.numeric(price)*as.numeric(balance))
               networth <- networth + sum(outputtables[[paste('bsc',protocol,e,pair,'Tokens Rewards')]]$balanceUSD)
               log_info('Handling Apeboard BSC {protocol} {e} tokens rewards data successful')
             }
